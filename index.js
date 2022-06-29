@@ -9,19 +9,24 @@ function pecker (stream, opts, onpeek) {
   if (typeof onpeek !== 'function') throw new Error('onpeek must be set')
 
   const objectMode = stream.readableObjectMode
+  const maxBuffer = typeof opts.maxBuffer === 'number' ? opts.maxBuffer : 65535
 
   stream = cloneable(stream)
 
-  let splitter = split()
+  let splitter = split(undefined, undefined, { maxLength: maxBuffer })
+  let errored = false
 
   const result = new PassThrough({ objectMode })
 
-  stream.pipe(splitter)
+  pipeline(stream, splitter, () => {})
+  splitter.on('error', onError)
 
   const secondClone = stream.clone()
   process.nextTick(() => {
     secondClone.pause()
   })
+
+  secondClone.on('error', onError)
 
   secondClone.resume()
 
@@ -39,18 +44,23 @@ function pecker (stream, opts, onpeek) {
     }
 
     function onStream (newStream) {
+      secondClone.removeListener('error', onError)
       pipeline(secondClone, newStream, result, () => {})
 
       splitter.destroy()
       splitter = null
     }
-
-    function onError (err) {
-      result.destroy(err)
-    }
   })
 
   return result
+
+  function onError (err) {
+    if (errored) {
+      return
+    }
+    errored = true
+    result.destroy(err)
+  }
 }
 
 module.exports = pecker

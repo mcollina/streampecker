@@ -1,3 +1,5 @@
+'use string'
+
 const pecker = require('./')
 const tape = require('tape')
 const concat = require('concat-stream')
@@ -67,4 +69,55 @@ tape('error', function (t) {
     t.equal(err.message, 'kaboom')
     t.end()
   })
+})
+
+tape('error in the original stream', function (t) {
+  const r = new Readable({
+    read () {
+      this.destroy(new Error('kaboom'))
+    }
+  })
+  const p = pecker(r, function (data) {
+    t.fail('should not be called')
+  })
+
+  p.on('error', function (err) {
+    t.equal(err.message, 'kaboom')
+    t.end()
+  })
+  p.resume()
+})
+
+tape('maxBuffer (default)', function (t) {
+  const r = new Readable({
+    read () {
+      this.push(Buffer.alloc(65535 + 1))
+    }
+  })
+  const p = pecker(r, function (data) {
+    t.fail('should not be called')
+  })
+
+  p.on('error', function (err) {
+    t.equal(err.message, 'maximum buffer reached')
+    t.end()
+  })
+  p.resume()
+})
+
+tape('maxBuffer (option)', function (t) {
+  const r = new Readable({
+    read () {
+      this.push(Buffer.alloc(42 + 1))
+    }
+  })
+  const p = pecker(r, { maxBuffer: 42 }, function (data) {
+    t.fail('should not be called')
+  })
+
+  p.on('error', function (err) {
+    t.equal(err.message, 'maximum buffer reached')
+    t.end()
+  })
+  p.resume()
 })
