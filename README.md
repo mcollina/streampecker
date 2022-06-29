@@ -1,10 +1,12 @@
 # streampecker
 
-Transform stream that lets you peek the first line before deciding how to parse it
+Transform stream that lets you peek the first line before deciding how to parse it.
 
 ```
 npm install streampecker
 ```
+
+This module was forked from [`peak-stream`](https://github.com/mafintosh/peak-stream) at version v1.1.3.
 
 ## Usage
 

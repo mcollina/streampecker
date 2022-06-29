@@ -47,7 +47,7 @@ function pecker (stream, opts, onpeek) {
       secondClone.removeListener('error', onError)
       pipeline(secondClone, newStream, result, () => {})
 
-      splitter.destroy()
+      stream.destroy()
       splitter = null
     }
   })
