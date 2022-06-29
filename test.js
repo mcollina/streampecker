@@ -1,89 +1,70 @@
-var peek = require('./')
-var tape = require('tape')
-var concat = require('concat-stream')
-var through = require('through2')
+const pecker = require('./')
+const tape = require('tape')
+const concat = require('concat-stream')
+const { Readable, Transform } = require('stream')
 
-var uppercase = function(data, enc, cb) {
+function uppercase (data, enc, cb) {
   cb(null, data.toString().toUpperCase())
 }
 
-tape('swap to uppercase', function(t) {
-  var p = peek(function(data, swap) {
-    swap(null, through(uppercase))
+tape('swap to uppercase', function (t) {
+  const r = Readable.from([
+    'hello\n',
+    'world\n'
+  ])
+  const p = pecker(r, async function (data) {
+    t.equal(data, 'hello')
+    return new Transform({ transform: uppercase })
   })
 
-  p.pipe(concat(function(data) {
+  p.pipe(concat(function (data) {
     t.same(data.toString(), 'HELLO\nWORLD\n')
     t.end()
   }))
-
-  p.write('hello\n')
-  p.write('world\n')
-  p.end()
 })
 
-tape('swap to uppercase no newline', function(t) {
-  var p = peek(function(data, swap) {
-    swap(null, through(uppercase))
+tape('error', function (t) {
+  const r = Readable.from([
+    'hello\n',
+    'world\n'
+  ])
+  const p = pecker(r, async function (data) {
+    throw new Error('kaboom')
   })
 
-  p.pipe(concat(function(data) {
-    t.same(data.toString(), 'HELLOWORLD')
+  p.on('error', function (err) {
+    t.equal(err.message, 'kaboom')
     t.end()
-  }))
-
-  p.write('hello')
-  p.write('world')
-  p.end()
+  })
 })
 
-tape('swap to uppercase async', function(t) {
-  var p = peek(function(data, swap) {
-    setTimeout(function() {
-      swap(null, through(uppercase))
-    }, 100)
+tape('swap to uppercase (no async)', function (t) {
+  const r = Readable.from([
+    'hello\n',
+    'world\n'
+  ])
+  const p = pecker(r, function (data) {
+    t.equal(data, 'hello')
+    return new Transform({ transform: uppercase })
   })
 
-  p.pipe(concat(function(data) {
+  p.pipe(concat(function (data) {
     t.same(data.toString(), 'HELLO\nWORLD\n')
     t.end()
   }))
-
-  p.write('hello\n')
-  p.write('world\n')
-  p.end()
 })
 
-tape('swap to error', function(t) {
-  var p = peek(function(data, swap) {
-    swap(new Error('nogo'))
+tape('error', function (t) {
+  const r = Readable.from([
+    'hello\n',
+    'world\n'
+  ])
+  const p = pecker(r, function (data) {
+    throw new Error('kaboom')
   })
 
-  p.on('error', function(err) {
-    t.ok(err)
-    t.same(err.message, 'nogo')
+  p.on('error', function (err) {
+    t.equal(err.message, 'kaboom')
     t.end()
   })
-
-  p.write('hello\n')
-  p.write('world\n')
-  p.end()
-})
-
-tape('swap to error async', function(t) {
-  var p = peek(function(data, swap) {
-    setTimeout(function() {
-      swap(new Error('nogo'))
-    }, 100)
-  })
-
-  p.on('error', function(err) {
-    t.ok(err)
-    t.same(err.message, 'nogo')
-    t.end()
-  })
-
-  p.write('hello\n')
-  p.write('world\n')
-  p.end()
 })

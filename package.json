@@ -4,13 +4,15 @@
   "description": "Transform stream that lets you peek the first line before deciding how to parse it",
   "main": "index.js",
   "dependencies": {
-    "buffer-from": "^1.0.0",
-    "duplexify": "^3.5.0",
-    "through2": "^2.0.3"
+    "cloneable-readable": "^2.1.0",
+    "split2": "^4.1.0"
   },
   "devDependencies": {
-    "concat-stream": "^1.6.0",
-    "tape": "^4.6.3"
+    "concat-stream": "^2.0.0",
+    "csv-parser": "^3.0.0",
+    "ldjson-stream": "^1.2.1",
+    "standard": "^17.0.0",
+    "tape": "^5.0.0"
   },
   "scripts": {
     "test": "tape test.js"

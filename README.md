@@ -1,26 +1,24 @@
-# peek-stream
+# streampecker
 
 Transform stream that lets you peek the first line before deciding how to parse it
 
 ```
-npm install peek-stream
+npm install streampecker
 ```
-
-[![build status](http://img.shields.io/travis/mafintosh/peek-stream.svg?style=flat)](http://travis-ci.org/mafintosh/peek-stream)
-![dat](http://img.shields.io/badge/Development%20sponsored%20by-dat-green.svg?style=flat)
 
 ## Usage
 
-``` js
-var peek = require('peek-stream')
-var ldjson = require('ldjson-stream')
-var csv = require('csv-parser')
+```js
+const pecker = require('streampecker')
+const ldjson = require('ldjson-stream')
+const csv = require('csv-parser')
+const { Readable } = require('stream')
 
-var isCSV = function(data) {
+const isCSV = function (data) {
   return data.toString().indexOf(',') > -1
 }
 
-var isJSON = function(data) {
+const isJSON = function (data) {
   try {
     JSON.parse(data)
     return true
@@ -29,56 +27,33 @@ var isJSON = function(data) {
   }
 }
 
-// call parser to create a new parser
-var parser = function() {
-  return peek(function(data, swap) {
+const parser = function (stream) {
+  return pecker(stream, function (data) {
     // maybe it is JSON?
-    if (isJSON(data)) return swap(null, ldjson())
+    if (isJSON(data)) return ldjson()
 
     // maybe it is CSV?
-    if (isCSV(data)) return swap(null, csv())
+    if (isCSV(data)) return csv()
 
     // we do not know - bail
-    swap(new Error('No parser available'))
+    throw new Error('No parser available')
   })
 }
-```
 
-The above parser will be able to parse both line delimited JSON and CSV
+let parse
 
-``` js
-var parse = parser()
+parse = parser(Readable.from('{"hello":"world"}\n{"hello":"another"}\n'))
 
-parse.write('{"hello":"world"}\n{"hello":"another"}\n')
-parse.on('data', function(data) {
-  console.log(data) // prints {hello:'world'} and {hello:'another'}
+parse.on('data', function (data) {
+  console.log('from ldj:', data)
+})
+
+parse = parser(Readable.from('test,header\nvalue-1,value-2\n'))
+
+parse.on('data', function (data) {
+  console.log('from csv:', data)
 })
 ```
-
-Or
-
-``` js
-var parse = parser()
-
-parse.write('test,header\nvalue-1,value-2\n')
-parse.on('data', function(data) {
-  console.log(data) // prints {test:'value-1', header:'value-2'}
-})
-```
-
-Per default `data` is the first line (or the first `65535` bytes if no newline is found).
-To change the max buffer pass an options map to the constructor
-
-``` js
-var parse = peek({
-  maxBuffer: 10000
-}, function(data, swap) {
-  ...
-})
-```
-
-If you want to emit an error if no newline is found set `strict: true` as well.
-
 
 ## License
 

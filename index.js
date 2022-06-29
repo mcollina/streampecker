@@ -1,77 +1,56 @@
-var duplexify = require('duplexify')
-var through = require('through2')
-var bufferFrom = require('buffer-from')
+'use strict'
 
-var noop = function() {}
+const { PassThrough, pipeline } = require('stream')
+const split = require('split2')
+const cloneable = require('cloneable-readable')
 
-var isObject = function(data) {
-  return !Buffer.isBuffer(data) && typeof data !== 'string'
-}
+function pecker (stream, opts, onpeek) {
+  if (typeof opts === 'function') return pecker(stream, {}, opts)
+  if (typeof onpeek !== 'function') throw new Error('onpeek must be set')
 
-var peek = function(opts, onpeek) {
-  if (typeof opts === 'number') opts = {maxBuffer:opts}
-  if (typeof opts === 'function') return peek(null, opts)
-  if (!opts) opts = {}
+  const objectMode = stream.readableObjectMode
 
-  var maxBuffer = typeof opts.maxBuffer === 'number' ? opts.maxBuffer : 65535
-  var strict = opts.strict
-  var newline = opts.newline !== false
+  stream = cloneable(stream)
 
-  var buffer = []
-  var bufferSize = 0
-  var dup = duplexify.obj()
+  let splitter = split()
 
-  var peeker = through.obj({highWaterMark:1}, function(data, enc, cb) {
-    if (isObject(data)) return ready(data, null, cb)
-    if (!Buffer.isBuffer(data)) data = bufferFrom(data)
+  const result = new PassThrough({ objectMode })
 
-    if (newline) {
-      var nl = Array.prototype.indexOf.call(data, 10)
-      if (nl > 0 && data[nl-1] === 13) nl--
+  stream.pipe(splitter)
 
-      if (nl > -1) {
-        buffer.push(data.slice(0, nl))
-        return ready(Buffer.concat(buffer), data.slice(nl), cb)
-      }
-    }
-
-    buffer.push(data)
-    bufferSize += data.length
-
-    if (bufferSize < maxBuffer) return cb()
-    if (strict) return cb(new Error('No newline found'))
-    ready(Buffer.concat(buffer), null, cb)
+  const secondClone = stream.clone()
+  process.nextTick(() => {
+    secondClone.pause()
   })
 
-  var onpreend = function() {
-    if (strict) return dup.destroy(new Error('No newline found'))
-    dup.cork()
-    ready(Buffer.concat(buffer), null, function(err) {
-      if (err) return dup.destroy(err)
-      dup.uncork()
-    })
-  }
+  secondClone.resume()
 
-  var ready = function(data, overflow, cb) {
-    dup.removeListener('preend', onpreend)
-    onpeek(data, function(err, parser) {
-      if (err) return cb(err)
+  splitter.once('readable', function () {
+    const line = splitter.read()
+    try {
+      const p = onpeek(line)
+      if (typeof p.then === 'function') {
+        p.then(onStream, onError)
+      } else {
+        onStream(p)
+      }
+    } catch (err) {
+      onError(err)
+    }
 
-      dup.setWritable(parser)
-      dup.setReadable(parser)
+    function onStream (newStream) {
+      pipeline(secondClone, newStream, result, () => {})
 
-      if (data) parser.write(data)
-      if (overflow) parser.write(overflow)
+      splitter.destroy()
+      splitter = null
+    }
 
-      overflow = buffer = peeker = null // free the data
-      cb()
-    })
-  }
+    function onError (err) {
+      result.destroy(err)
+    }
+  })
 
-  dup.on('preend', onpreend)
-  dup.setWritable(peeker)
-
-  return dup
+  return result
 }
 
-module.exports = peek
+module.exports = pecker

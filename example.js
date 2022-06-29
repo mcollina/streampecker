@@ -1,12 +1,15 @@
-var peek = require('peek-stream')
-var ldjson = require('ldjson-stream')
-var csv = require('csv-parser')
+'use strict'
 
-var isCSV = function(data) {
+const pecker = require('.')
+const ldjson = require('ldjson-stream')
+const csv = require('csv-parser')
+const { Readable } = require('stream')
+
+const isCSV = function (data) {
   return data.toString().indexOf(',') > -1
 }
 
-var isJSON = function(data) {
+const isJSON = function (data) {
   try {
     JSON.parse(data)
     return true
@@ -15,29 +18,29 @@ var isJSON = function(data) {
   }
 }
 
-var parser = function() {
-  return peek(function(data, swap) {
+const parser = function (stream) {
+  return pecker(stream, function (data) {
     // maybe it is JSON?
-    if (isJSON(data)) return swap(null, ldjson())
+    if (isJSON(data)) return ldjson()
 
     // maybe it is CSV?
-    if (isCSV(data)) return swap(null, csv())
+    if (isCSV(data)) return csv()
 
     // we do not know - bail
-    swap(new Error('No parser available'))
+    throw new Error('No parser available')
   })
 }
 
-var parse = parser()
+let parse
 
-parse.write('{"hello":"world"}\n{"hello":"another"}\n')
-parse.on('data', function(data) {
+parse = parser(Readable.from('{"hello":"world"}\n{"hello":"another"}\n'))
+
+parse.on('data', function (data) {
   console.log('from ldj:', data)
 })
 
-var parse = parser()
+parse = parser(Readable.from('test,header\nvalue-1,value-2\n'))
 
-parse.write('test,header\nvalue-1,value-2\n')
-parse.on('data', function(data) {
+parse.on('data', function (data) {
   console.log('from csv:', data)
 })
